@@ -2854,7 +2854,12 @@ window.FB = FB;
 
                 getFilteredStudents() {
                     const targetClass = this.activeTab === 'absensi' ? this.attendanceForm.selectedClass : this.gradeForm.selectedClass;
-                    return this.students.filter(s => s.kelas === targetClass);
+                    const list = this.students.filter(s => s.kelas === targetClass);
+                    // Halaman Absensi: urutkan siswa berdasarkan abjad nama (A-Z)
+                    if (this.activeTab === 'absensi') {
+                        list.sort((a, b) => String(a.nama || '').localeCompare(String(b.nama || ''), 'id', { sensitivity: 'base', numeric: true }));
+                    }
+                    return list;
                 },
 
                 setAttendanceStatus(nisn, status) {
