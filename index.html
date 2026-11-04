@@ -3089,11 +3089,8 @@ window.FB = FB;
                 getFilteredStudents() {
                     const targetClass = this.activeTab === 'absensi' ? this.attendanceForm.selectedClass : this.gradeForm.selectedClass;
                     const list = this.students.filter(s => s.kelas === targetClass);
-                    // Halaman Absensi: urutkan siswa berdasarkan abjad nama (A-Z)
-                    if (this.activeTab === 'absensi') {
-                        list.sort((a, b) => String(a.nama || '').localeCompare(String(b.nama || ''), 'id', { sensitivity: 'base', numeric: true }));
-                    }
-                    return list;
+                    // Halaman Absensi & Nilai: urutkan siswa berdasarkan abjad nama (A-Z)
+                    return list.sort((a, b) => String(a.nama || '').localeCompare(String(b.nama || ''), 'id', { sensitivity: 'base', numeric: true }));
                 },
 
                 setAttendanceStatus(nisn, status) {
