@@ -355,6 +355,10 @@
                     <i data-lucide="save" class="w-4 h-4"></i>
                     <span>Simpan Absensi Pertemuan</span>
                 </button>
+                <button x-show="attendanceForm.saved" x-cloak @click="deleteAttendance()" :disabled="saving" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-semibold py-3 rounded-2xl transition disabled:opacity-60 flex items-center justify-center gap-2">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    <span>Hapus Absensi Pertemuan Ini</span>
+                </button>
             </div>
 
             <div x-show="activeTab === 'analisis'" x-effect="if (activeTab === 'analisis' && isLoggedIn && soal.key !== soalKey()) loadSoal()" class="space-y-4">
@@ -1742,6 +1746,11 @@ const FB = {
       journals: (await all('jurnal')).filter(mine).map(j => ({ ...j, mapel: j.mataPelajaran || '' })), documents: (await all('berkas')).filter(mine) }); }),
   loadAttendance: wrap(async (kelas, mapel, pert, tp, sem) => { const m = me(); need(await canT(m, kelas, tp, sem, mapel), 'Anda tidak mengampu mata pelajaran/kelas ini.'); const records = {}; let tanggal = '';
     (await all('absensi', where('username', '==', m.username), where('kelas', '==', kelas), where('mapel', '==', mapel), where('pertemuan', '==', Number(pert)), where('tp', '==', tp), where('semester', '==', sem))).forEach(a => { records[a.nisn] = a.status; tanggal = a.tanggal; }); return ok({ records, tanggal }); }),
+  deleteAttendance: wrap(async (kelas, mapel, pert, tp, sem) => { const m = me(); need(await canT(m, kelas, tp, sem, mapel), 'Anda tidak mengampu mata pelajaran/kelas ini.');
+    const rows = await all('absensi', where('username', '==', m.username), where('kelas', '==', kelas), where('mapel', '==', mapel), where('pertemuan', '==', Number(pert)), where('tp', '==', tp), where('semester', '==', sem));
+    need(rows.length, 'Belum ada absensi tersimpan untuk pertemuan ini.');
+    for (let i = 0; i < rows.length; i += 450) { const b = writeBatch(db); rows.slice(i, i + 450).forEach(r => b.delete(D('absensi', r.id))); await b.commit(); }
+    return ok({ message: 'Absensi pertemuan ' + pert + ' (' + rows.length + ' siswa) berhasil dihapus.' }); }),
   saveAttendanceData: wrap(async p => { const m = me(), pert = parseInt(p.pertemuan, 10); need(pert >= 1 && pert <= 60, 'Pertemuan tidak valid.'); need(/^\d{4}-\d{2}-\d{2}$/.test(p.tanggal), 'Tanggal tidak valid.'); need(await canT(m, p.kelas, p.tp, p.semester, p.mapel), 'Anda tidak mengampu mata pelajaran/kelas ini.');
     const valid = new Set((await all('siswa', where('kelas', '==', p.kelas))).map(s => s.id)), rows = [];
     Object.keys(p.records || {}).forEach(n => { if (valid.has(n) && 'HISA'.includes(p.records[n]) && p.records[n].length === 1) rows.push({ id: [tpk(p.tp), p.semester, p.kelas, m.username, slug(p.mapel), 'P' + pert, n].join('_'), username: m.username, tanggal: p.tanggal, kelas: p.kelas, pertemuan: pert, nisn: n, status: p.records[n], tp: p.tp, semester: p.semester, mapel: p.mapel }); });
@@ -1960,7 +1969,7 @@ window.FB = FB;
                 backupBusy: false, backupResult: { url: '', name: '' },
                 myJadwalForm: { hari: 'Senin', jamKe: '', kelas: '', mapel: '' },
                 soal: { sub: 'kunci', key: '', kunci: [], hasil: [], sel: '', scans: [], busy: false, an: null, form: { id: '', kelas: '', mapel: '', jenis: 'Harian', ke: 1, judul: '', jumlahSoal: 20, jumlahOpsi: 4, kunci: '' } },
-                attendanceForm: { selectedClass: 'X-1', mapel: '', tanggal: (() => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().split('T')[0]; })(), pertemuan: 1, records: {} },
+                attendanceForm: { saved: false, selectedClass: 'X-1', mapel: '', tanggal: (() => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().split('T')[0]; })(), pertemuan: 1, records: {} },
                 journalForm: { id: '', mapel: '', 
                     tanggal: (() => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().split('T')[0]; })(), 
                     kelas: 'X-1', 
@@ -2413,11 +2422,11 @@ window.FB = FB;
                 },
 
                 async loadAttendance() {
-                    this.attendanceForm.records = {};
+                    this.attendanceForm.records = {}; this.attendanceForm.saved = false;
                     const f = this.attendanceForm;
                     if (IS_PREVIEW || !f.selectedClass || !f.mapel) return;
                     const r = await this.api('loadAttendance', f.selectedClass, f.mapel, f.pertemuan, this.activeTP, this.activeSemester);
-                    if (r.success) { this.attendanceForm.records = r.records || {}; if (r.tanggal) this.attendanceForm.tanggal = r.tanggal; }
+                    if (r.success) { this.attendanceForm.records = r.records || {}; this.attendanceForm.saved = Object.keys(r.records || {}).length > 0; if (r.tanggal) this.attendanceForm.tanggal = r.tanggal; }
                 },
 
                 async saveAttendance() {
@@ -2430,7 +2439,18 @@ window.FB = FB;
                     const r = IS_PREVIEW ? { success: true, message: 'Absensi tersimpan (preview).' }
                         : await this.api('saveAttendanceData', { tanggal: f.tanggal, kelas: f.selectedClass, mapel: f.mapel, pertemuan: f.pertemuan, records: records, tp: this.activeTP, semester: this.activeSemester });
                     this.saving = false;
-                    this.done(r, 'Absensi tersimpan.');
+                    if (this.done(r, 'Absensi tersimpan.')) f.saved = true;
+                },
+
+                async deleteAttendance() {
+                    const f = this.attendanceForm;
+                    if (!f.selectedClass || !f.mapel) return this.notify('Pilih kelas dan mata pelajaran yang Anda ampu.', 'err');
+                    if (!confirm('Hapus seluruh absensi ' + f.mapel + ' kelas ' + f.selectedClass + ' pertemuan ' + f.pertemuan + '? Tindakan ini tidak dapat dibatalkan.')) return;
+                    this.saving = true;
+                    const r = IS_PREVIEW ? { success: true, message: 'Absensi dihapus (preview).' }
+                        : await this.api('deleteAttendance', f.selectedClass, f.mapel, f.pertemuan, this.activeTP, this.activeSemester);
+                    this.saving = false;
+                    if (this.done(r, 'Absensi dihapus.')) { f.records = {}; f.saved = false; }
                 },
 
 
