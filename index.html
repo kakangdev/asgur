@@ -113,6 +113,21 @@
                     <p>• Guru: <code class="text-indigo-600 font-bold">guru1</code> (Akses Terisolasi Khusus Guru)</p>
                 </div>
             </form>
+            <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 space-y-3">
+                <button type="button" @click="reg.open = !reg.open; reg.err = ''; reg.ok = false" class="w-full text-xs font-bold text-indigo-600" x-text="reg.open ? 'Tutup Formulir Pendaftaran' : 'Belum punya akun? Daftar sebagai Guru'"></button>
+                <form x-show="reg.open" x-cloak @submit.prevent="submitReg()" class="space-y-2.5">
+                    <p class="text-[11px] text-slate-500">Khusus guru <strong>MTsN 6 Ciamis</strong>. Akun aktif setelah disetujui admin. Kode pendaftaran diminta dari admin madrasah.</p>
+                    <input type="text" x-model="reg.f.nama" required placeholder="Nama lengkap (beserta gelar)" class="w-full px-4 py-3 text-sm rounded-xl border border-slate-200">
+                    <input type="text" inputmode="numeric" x-model="reg.f.nip" required placeholder="NIP / NUPTK" class="w-full px-4 py-3 text-sm rounded-xl border border-slate-200">
+                    <input type="text" x-model="reg.f.username" required placeholder="Username (3-30 karakter)" autocomplete="off" class="w-full px-4 py-3 text-sm rounded-xl border border-slate-200">
+                    <input type="password" x-model="reg.f.password" required placeholder="Password (min. 8, huruf + angka)" autocomplete="new-password" class="w-full px-4 py-3 text-sm rounded-xl border border-slate-200">
+                    <input type="password" x-model="reg.f.password2" required placeholder="Ulangi password" autocomplete="new-password" class="w-full px-4 py-3 text-sm rounded-xl border border-slate-200">
+                    <input type="text" x-model="reg.f.kode" required placeholder="Kode pendaftaran madrasah" autocomplete="off" class="w-full px-4 py-3 text-sm rounded-xl border border-slate-200">
+                    <p x-show="reg.err" x-cloak x-text="reg.err" class="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2"></p>
+                    <p x-show="reg.ok" x-cloak class="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">Pendaftaran terkirim. Tunggu persetujuan admin, lalu login dengan username dan password Anda.</p>
+                    <button type="submit" :disabled="reg.busy" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-semibold py-3 rounded-xl text-sm transition"><span x-text="reg.busy ? 'Mengirim...' : 'Kirim Pendaftaran'"></span></button>
+                </form>
+            </div>
         </div>
 
         <div x-show="isLoggedIn" class="space-y-5">
@@ -983,8 +998,26 @@
                         <p class="text-xs text-amber-100">Atur pengguna, periode akademik, siswa, master kelas, tugas & jadwal mengajar.</p>
                     </div>
 
+                    <div x-show="adminSubTab === 'pendaftar'" x-effect="if (activeTab === 'admin' && adminSubTab === 'pendaftar' && user && user.role === 'Admin' && !reg.loaded) loadPendaftar()" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                        <h3 class="text-sm font-bold text-slate-800">Pendaftaran Akun Guru</h3>
+                        <div class="bg-slate-50 rounded-xl p-3 space-y-2">
+                            <label class="flex items-center gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" x-model="reg.cfg.open" class="rounded"> Pendaftaran dibuka</label>
+                            <input type="text" x-model="reg.kodeBaru" :placeholder="reg.cfg.hasKode ? 'Kode baru (kosongkan bila tidak diganti)' : 'Buat kode pendaftaran (min. 8 karakter)'" autocomplete="off" class="w-full px-3 py-2 text-xs rounded-xl border border-slate-200">
+                            <button @click="saveRegCfg()" class="w-full bg-indigo-600 text-white font-semibold py-2 rounded-xl text-xs">Simpan Pengaturan</button>
+                            <p class="text-[10px] text-slate-400">Bagikan kode hanya ke grup guru MTsN 6 Ciamis. Ganti kode bila bocor.</p>
+                        </div>
+                        <template x-for="u in reg.list" :key="u.id">
+                            <div class="border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-2">
+                                <div><p class="text-xs font-bold text-slate-800" x-text="u.nama"></p><p class="text-[10px] text-slate-500" x-text="'Username: ' + u.id + ' | NIP/NUPTK: ' + u.nip"></p></div>
+                                <div class="flex gap-1"><button @click="aprPendaftar(u, true)" class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-600 text-white">Setujui</button><button @click="aprPendaftar(u, false)" class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-rose-50 text-rose-600">Tolak</button></div>
+                            </div>
+                        </template>
+                        <p x-show="!reg.list.length" class="text-center text-xs text-slate-400 py-3">Tidak ada pendaftar yang menunggu.</p>
+                    </div>
+
                     <!-- Admin Vertical Navigation Menu -->
                     <div class="flex flex-col space-y-1.5 p-2 bg-slate-200/60 rounded-2xl w-full">
+                        <button @click="adminSubTab = 'pendaftar'" :class="adminSubTab === 'pendaftar' ? 'bg-indigo-600 text-white shadow-xs font-bold' : 'text-slate-700 hover:text-slate-900 bg-white'" class="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs transition"><span>Pendaftar Guru <span x-show="reg.list.length" class="ml-1 px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[10px]" x-text="reg.list.length"></span></span></button>
                         <button @click="adminSubTab = 'periode'" :class="adminSubTab === 'periode' ? 'bg-indigo-600 text-white shadow-xs font-bold' : 'text-slate-700 hover:text-slate-900 bg-white/80 font-semibold'" class="w-full px-3 py-2.5 rounded-xl text-xs transition-all flex items-center justify-between">
                             <span class="flex items-center gap-2">
                                 <i data-lucide="calendar-range" class="w-4 h-4"></i>
@@ -1830,6 +1863,22 @@ Object.assign(FB, {
   updateNotulen: wrap(async p => { const m = me(), s = await getDoc(D('notulen', p.id)); need(s.exists(), 'Notulen tidak ditemukan.'); need(m.role === 'Admin' || s.data().username === m.username, 'Anda hanya dapat mengubah notulen milik sendiri.'); await setDoc(D('notulen', p.id), NV(p), { merge: true }); return ok({ message: 'Notulen berhasil diperbarui!' }); }),
   deleteNotulen: wrap(async id => { const m = me(), s = await getDoc(D('notulen', id)); need(s.exists(), 'Notulen tidak ditemukan.'); need(m.role === 'Admin' || s.data().username === m.username, 'Anda hanya dapat menghapus notulen milik sendiri.'); await deleteDoc(D('notulen', id)); return ok({ message: 'Notulen dihapus.' }); }),
   saveKop: wrap(async (sekolah, kepsek) => { adm(); await setDoc(D('settings', 'app'), { namaSekolah: String(sekolah || '').slice(0, 120), kepsek: String(kepsek || '').slice(0, 80) }, { merge: true }); return ok(); }),
+  registerGuru: wrap(async d => {
+    const nama = String(d.nama || '').trim(), nip = String(d.nip || '').replace(/\s/g, ''), un = String(d.username || '').trim(), kode = String(d.kode || '').trim();
+    need(nama.length >= 3 && nama.length <= 100, 'Nama lengkap 3-100 karakter.'); need(/^\d{8,25}$/.test(nip), 'NIP/NUPTK harus berupa 8-25 digit angka.');
+    need(/^[A-Za-z0-9_.-]{3,30}$/.test(un), 'Username 3-30 karakter (huruf, angka, titik, strip, underscore).'); checkPass(d.password); need(kode, 'Kode pendaftaran madrasah wajib diisi.');
+    const salt = newSalt(), kodeHash = hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(kode)));
+    try { await setDoc(D('pendaftaran', un), { nama, nip, salt, passHash: await hash(d.password, salt), kodeHash, status: 'menunggu', createdAt: Date.now() }); }
+    catch (e) { throw new Error(/permission|insufficient/i.test(e.message) ? 'Pendaftaran ditolak: kode salah, pendaftaran sedang ditutup, atau username sudah dipakai / menunggu persetujuan.' : e.message); }
+    return ok({ message: 'Pendaftaran terkirim.' }); }),
+  getPendaftaranCfg: wrap(async () => { adm(); const s0 = await getDoc(D('rahasia', 'pendaftaran')); return ok({ cfg: { open: s0.exists() && s0.data().open === true, hasKode: s0.exists() && !!s0.data().kodeHash } }); }),
+  setPendaftaranCfg: wrap(async p => { adm(); const kode = String(p.kode || '').trim(), o = { open: !!p.open };
+    if (kode) { need(kode.length >= 8, 'Kode pendaftaran minimal 8 karakter.'); o.kodeHash = hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(kode))); } else { const s0 = await getDoc(D('rahasia', 'pendaftaran')); need(s0.exists() && s0.data().kodeHash, 'Buat kode pendaftaran terlebih dahulu.'); }
+    await setDoc(D('rahasia', 'pendaftaran'), o, { merge: true }); return ok({ message: 'Pengaturan pendaftaran tersimpan.' }); }),
+  listPendaftar: wrap(async () => { adm(); return ok({ list: (await all('pendaftaran')).map(x => ({ id: x.id, nama: x.nama, nip: x.nip, createdAt: x.createdAt })).sort((a, b) => a.createdAt - b.createdAt) }); }),
+  approvePendaftar: wrap(async un => { adm(); const s0 = await getDoc(D('pendaftaran', un)); need(s0.exists(), 'Pendaftaran tidak ditemukan.'); need(!(await getDoc(D('users', un))).exists(), 'Username sudah dipakai.'); const d = s0.data();
+    await setDoc(D('users', un), { nama: d.nama, nip: d.nip, salt: d.salt, passHash: d.passHash, mustChange: false }); await deleteDoc(D('pendaftaran', un)); return ok({ message: 'Akun ' + d.nama + ' disetujui. Jangan lupa menambahkan tugas mengajarnya.' }); }),
+  tolakPendaftar: wrap(async un => { adm(); await deleteDoc(D('pendaftaran', un)); return ok({ message: 'Pendaftaran ditolak.' }); }),
   listKunci: wrap(async (tp, sem) => { const m = me(); return ok({ kunci: (await all('kunciSoal', where('tp', '==', tp), where('semester', '==', sem))).filter(k => m.role === 'Admin' || k.username === m.username) }); }),
   saveKunci: wrap(async p => { const m = me(), n = parseInt(p.jumlahSoal, 10), o = parseInt(p.jumlahOpsi, 10), kunci = String(p.kunci || '').toUpperCase();
     need(await canT(m, p.kelas, p.tp, p.semester, p.mapel), 'Anda tidak mengampu mata pelajaran/kelas ini.'); need(n >= 1 && n <= 50, 'Jumlah soal harus 1-50.'); need(o === 4 || o === 5, 'Jumlah opsi harus 4 atau 5.');
@@ -1900,6 +1949,7 @@ window.FB = FB;
                 jadwalForm: { username: 'guru1', hari: 'Senin', jamKe: '1-2', kelas: 'X-1', mataPelajaran: '' },
 
                 loginForm: { username: '', password: '' },
+                reg: { open: false, busy: false, ok: false, err: '', f: { nama: '', nip: '', username: '', password: '', password2: '', kode: '' }, loaded: false, list: [], cfg: { open: false, hasKode: false }, kodeBaru: '' },
                 mapelList: [{ id: '1', nama: 'Matematika' }, { id: '2', nama: 'Fisika' }],
                 mapelForm: { id: '', nama: '' },
                 weights: { Harian: 40, PTS: 20, ASAS: 20, ASAT: 20 },
@@ -2192,6 +2242,15 @@ window.FB = FB;
                     if (this.done(r, 'Jadwal mengajar dihapus.')) this.jadwalMengajar = this.jadwalMengajar.filter(j => j.id !== id);
                 },
 
+                async submitReg() {
+                    const R = this.reg, f = R.f; R.err = ''; R.ok = false;
+                    if (f.password !== f.password2) { R.err = 'Konfirmasi password tidak sama.'; return; }
+                    R.busy = true; const r = IS_PREVIEW ? { success: true } : await window.FB.registerGuru(null, { ...f }); R.busy = false;
+                    if (r.success) { R.ok = true; R.f = { nama: '', nip: '', username: '', password: '', password2: '', kode: '' }; } else R.err = r.message;
+                },
+                async loadPendaftar() { const R = this.reg; R.loaded = true; const [a, b] = await Promise.all([this.api('listPendaftar'), this.api('getPendaftaranCfg')]); if (a.success) R.list = a.list; if (b.success) R.cfg = b.cfg; },
+                async saveRegCfg() { const R = this.reg, r = await this.api('setPendaftaranCfg', { open: R.cfg.open, kode: R.kodeBaru }); if (this.done(r, 'Pengaturan tersimpan.')) { R.kodeBaru = ''; await this.loadPendaftar(); } },
+                async aprPendaftar(u, setuju) { if (!setuju && !confirm('Tolak pendaftaran ' + u.nama + '?')) return; const r = await this.api(setuju ? 'approvePendaftar' : 'tolakPendaftar', u.id); if (this.done(r, setuju ? 'Akun guru dibuat.' : 'Pendaftaran ditolak.')) await this.loadPendaftar(); },
                 async saveUser() {
                     if (this.user.role !== 'Admin') return;
                     const f = this.userForm, action = this.editingUser ? 'UPDATE' : 'ADD';
