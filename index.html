@@ -236,6 +236,10 @@
                             <span class="text-[11px] font-semibold text-slate-700">Berkas</span>
                         </button>
 
+                        <button @click="activeTab = 'analisis'" class="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-col items-center text-center space-y-1 hover:border-indigo-500 transition">
+                            <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center"><i data-lucide="scan-line" class="w-5 h-5"></i></div>
+                            <span class="text-[11px] font-semibold text-slate-700">Analisis Soal</span>
+                        </button>
                         <button @click="activeTab = 'nilai'" class="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-col items-center text-center space-y-1 hover:border-indigo-500 transition">
                             <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
                                 <i data-lucide="calculator" class="w-5 h-5"></i>
@@ -336,6 +340,113 @@
                     <i data-lucide="save" class="w-4 h-4"></i>
                     <span>Simpan Absensi Pertemuan</span>
                 </button>
+            </div>
+
+            <div x-show="activeTab === 'analisis'" x-effect="if (activeTab === 'analisis' && isLoggedIn && soal.key !== soalKey()) loadSoal()" class="space-y-4">
+                <div class="bg-white/80 backdrop-blur p-3 rounded-2xl border border-slate-200 shadow-xs flex gap-1 overflow-x-auto">
+                    <template x-for="t in [['kunci','Kunci'],['cetak','Cetak LJK'],['scan','Scan LJK'],['hasil','Hasil'],['analisis','Analisis Butir']]" :key="t[0]">
+                        <button @click="soal.sub = t[0]" :class="soal.sub === t[0] ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'" class="px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition" x-text="t[1]"></button>
+                    </template>
+                </div>
+                <div x-show="soal.sub !== 'kunci'" class="bg-indigo-50 border border-indigo-100 rounded-2xl p-3 text-xs text-indigo-800">
+                    <template x-if="curKunci()"><span>Kunci aktif: <strong x-text="curKunci().judul + ' - ' + curKunci().mapel + ' (' + curKunci().kelas + ')'"></strong></span></template>
+                    <template x-if="!curKunci()"><span>Belum ada kunci dipilih. Buka tab <strong>Kunci</strong> lalu tekan "Pilih".</span></template>
+                </div>
+
+                <div x-show="soal.sub === 'kunci'" class="space-y-3">
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                        <h3 class="text-sm font-bold text-slate-800" x-text="soal.form.id ? 'Edit Kunci Jawaban' : 'Buat Kunci Jawaban'"></h3>
+                        <div class="grid grid-cols-2 gap-2">
+                            <select x-model="soal.form.kelas" class="px-3 py-2 text-xs rounded-xl border border-slate-200 font-semibold"><option value="" disabled>Kelas</option><template x-for="c in getAssignedClasses()" :key="c"><option :value="c" x-text="c"></option></template></select>
+                            <select x-model="soal.form.mapel" class="px-3 py-2 text-xs rounded-xl border border-slate-200 font-semibold"><option value="" disabled>Mata Pelajaran</option><template x-for="m in getAssignedMapel(soal.form.kelas)" :key="m"><option :value="m" x-text="m"></option></template></select>
+                            <select x-model="soal.form.jenis" class="px-3 py-2 text-xs rounded-xl border border-slate-200 font-semibold"><option>Harian</option><option>PTS</option><option>ASAS</option><option>ASAT</option></select>
+                            <input type="number" min="1" max="20" x-model="soal.form.ke" :disabled="soal.form.jenis !== 'Harian'" placeholder="Harian ke-" class="px-3 py-2 text-xs rounded-xl border border-slate-200 font-semibold disabled:bg-slate-100">
+                            <input type="text" x-model="soal.form.judul" placeholder="Judul (mis. PH 1 Bab 2)" class="col-span-2 px-3 py-2 text-xs rounded-xl border border-slate-200 font-semibold">
+                            <input type="number" min="1" max="50" x-model="soal.form.jumlahSoal" placeholder="Jumlah soal" class="px-3 py-2 text-xs rounded-xl border border-slate-200 font-semibold">
+                            <select x-model.number="soal.form.jumlahOpsi" class="px-3 py-2 text-xs rounded-xl border border-slate-200 font-semibold"><option :value="4">Opsi A-D</option><option :value="5">Opsi A-E</option></select>
+                        </div>
+                        <div>
+                            <textarea x-model="soal.form.kunci" rows="2" placeholder="Kunci jawaban berurutan, mis. ABCDDABC..." class="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 font-mono uppercase"></textarea>
+                            <p class="text-[10px] text-slate-400">Terisi: <span x-text="String(soal.form.kunci || '').replace(/[^A-Ea-e]/g, '').length"></span> / <span x-text="soal.form.jumlahSoal"></span> soal</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button @click="saveKunciSoal()" :disabled="saving" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-xl text-xs transition disabled:opacity-60">Simpan Kunci</button>
+                            <button x-show="soal.form.id" @click="resetKunciForm()" class="px-4 bg-slate-100 text-slate-600 font-semibold rounded-xl text-xs">Batal</button>
+                        </div>
+                    </div>
+                    <template x-for="k in soal.kunci" :key="k.id">
+                        <div :class="soal.sel === k.id ? 'border-indigo-500' : 'border-slate-200'" class="bg-white p-3.5 rounded-2xl border shadow-xs flex items-center justify-between gap-2">
+                            <div><p class="text-xs font-bold text-slate-800" x-text="k.judul"></p><p class="text-[10px] text-slate-500" x-text="k.mapel + ' | ' + k.kelas + ' | ' + k.jenis + ' | ' + k.jumlahSoal + ' soal'"></p></div>
+                            <div class="flex gap-1">
+                                <button @click="pickKunci(k.id)" class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-indigo-600 text-white">Pilih</button>
+                                <button @click="editKunci(k)" class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-slate-100 text-slate-700">Edit</button>
+                                <button @click="delKunci(k)" class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-rose-50 text-rose-600">Hapus</button>
+                            </div>
+                        </div>
+                    </template>
+                    <p x-show="!soal.kunci.length" class="text-center text-xs text-slate-400 py-6">Belum ada data kunci jawaban.</p>
+                </div>
+
+                <div x-show="soal.sub === 'cetak'" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                    <h3 class="text-sm font-bold text-slate-800">Cetak LJK per Siswa</h3>
+                    <p class="text-xs text-slate-500">LJK dicetak satu lembar per siswa (urut abjad) dengan nama, NISN, dan kode siswa otomatis. Cetak ukuran A4, skala 100% (Actual size), tanpa margin tambahan.</p>
+                    <button @click="printLJK()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-2xl text-xs transition">Cetak LJK Kelas <span x-text="curKunci() ? curKunci().kelas + ' (' + sortedStudents(curKunci().kelas).length + ' siswa)' : ''"></span></button>
+                </div>
+
+                <div x-show="soal.sub === 'scan'" class="space-y-3">
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                        <h3 class="text-sm font-bold text-slate-800">Scan LJK</h3>
+                        <p class="text-xs text-slate-500">Foto tegak lurus, cahaya merata, keempat penanda hitam di sudut terlihat. Bisa pilih banyak foto sekaligus.</p>
+                        <div class="flex gap-2">
+                            <label class="flex-1 text-center bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-xl text-xs cursor-pointer transition"><span x-text="soal.busy ? 'Memproses...' : 'Ambil / Pilih Foto'"></span><input type="file" accept="image/*" multiple class="hidden" @change="scanFiles($event)" :disabled="soal.busy"></label>
+                            <button @click="addManual()" class="px-4 bg-slate-100 text-slate-700 font-semibold rounded-xl text-xs">+ Manual</button>
+                        </div>
+                    </div>
+                    <template x-for="(sc, i) in soal.scans" :key="i">
+                        <div class="bg-white p-3.5 rounded-2xl border shadow-xs space-y-2" :class="sc.err || !sc.nisn || /[*]/.test(sc.jawaban) ? 'border-amber-400' : 'border-slate-200'">
+                            <p class="text-[10px] text-slate-400" x-text="sc.name"></p>
+                            <p x-show="sc.err" class="text-[11px] text-rose-600" x-text="sc.err"></p>
+                            <select x-model="sc.nisn" class="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 font-semibold"><option value="">-- Pilih siswa --</option><template x-for="s in sortedStudents(curKunci().kelas)" :key="s.nisn"><option :value="s.nisn" x-text="s.nama"></option></template></select>
+                            <input type="text" x-model="sc.jawaban" class="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 font-mono tracking-widest uppercase">
+                            <p class="text-[10px] text-slate-400">Koreksi bila perlu: huruf = jawaban, <b>-</b> = kosong, <b>*</b> = ganda/ragu.</p>
+                            <button @click="soal.scans.splice(i, 1)" class="text-[11px] font-bold text-rose-600">Buang lembar ini</button>
+                        </div>
+                    </template>
+                    <button x-show="soal.scans.length" @click="saveScans()" :disabled="saving" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-2xl text-xs shadow-md transition disabled:opacity-60">Simpan <span x-text="soal.scans.length"></span> Hasil Koreksi</button>
+                </div>
+
+                <div x-show="soal.sub === 'hasil'" class="space-y-3">
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-x-auto">
+                        <table class="w-full text-xs"><thead class="bg-slate-50 text-slate-500"><tr><th class="p-2 text-left">Siswa</th><th class="p-2">Benar</th><th class="p-2">Salah</th><th class="p-2">Kosong</th><th class="p-2">Skor</th></tr></thead>
+                        <tbody><template x-for="h in soal.hasil" :key="h.nisn"><tr class="border-t border-slate-100"><td class="p-2 font-semibold" x-text="soalNama(h.nisn)"></td><td class="p-2 text-center" x-text="h.benar"></td><td class="p-2 text-center" x-text="h.salah"></td><td class="p-2 text-center" x-text="h.kosong"></td><td class="p-2 text-center font-bold text-indigo-600" x-text="h.skor"></td></tr></template></tbody></table>
+                        <p x-show="!soal.hasil.length" class="text-center text-xs text-slate-400 py-6">Belum ada hasil koreksi.</p>
+                    </div>
+                    <button x-show="soal.hasil.length" @click="kirimNilai()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-2xl text-xs shadow-md transition">Kirim Skor ke Menu Nilai (<span x-text="curKunci() ? curKunci().jenis : ''"></span>)</button>
+                </div>
+
+                <div x-show="soal.sub === 'analisis'" class="space-y-3">
+                    <template x-if="!soal.an"><p class="text-center text-xs text-slate-400 py-6">Analisis butuh minimal 2 hasil koreksi pada kunci yang dipilih.</p></template>
+                    <template x-if="soal.an">
+                        <div class="space-y-3">
+                            <div class="grid grid-cols-2 md:grid-cols-5 gap-2 text-center">
+                                <template x-for="c in [['Peserta', soal.an.N], ['Rata-rata benar', soal.an.mu.toFixed(1)], ['Tertinggi / Terendah', soal.an.max + ' / ' + soal.an.min], ['Tuntas (≥75)', soal.an.tuntas + '%'], ['Reliabilitas KR-20', soal.an.kr20.toFixed(2)]]" :key="c[0]">
+                                    <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs"><p class="text-[10px] text-slate-500" x-text="c[0]"></p><p class="text-sm font-extrabold text-indigo-600" x-text="c[1]"></p></div>
+                                </template>
+                            </div>
+                            <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-x-auto">
+                                <table class="w-full text-[11px]"><thead class="bg-slate-50 text-slate-500"><tr><th class="p-2">No</th><th class="p-2">Kunci</th><th class="p-2">p</th><th class="p-2">Tingkat</th><th class="p-2">DP</th><th class="p-2">r-pbis</th><th class="p-2 text-left">Sebaran Jawaban (%)</th><th class="p-2 text-left">Rekomendasi</th></tr></thead>
+                                <tbody><template x-for="it in soal.an.items" :key="it.no"><tr class="border-t border-slate-100">
+                                    <td class="p-2 text-center font-bold" x-text="it.no"></td><td class="p-2 text-center font-bold text-emerald-600" x-text="it.c"></td>
+                                    <td class="p-2 text-center" x-text="it.p.toFixed(2)"></td>
+                                    <td class="p-2 text-center"><span class="px-2 py-0.5 rounded-md font-bold" :class="it.lvl === 'Sedang' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'" x-text="it.lvl"></span></td>
+                                    <td class="p-2 text-center" :class="it.dp < .2 ? 'text-rose-600 font-bold' : ''" x-text="it.dp.toFixed(2)"></td><td class="p-2 text-center" x-text="it.rpb.toFixed(2)"></td>
+                                    <td class="p-2"><div class="flex gap-1.5"><template x-for="o in soal.an.opts" :key="o"><div class="text-center"><div class="w-6 h-8 bg-slate-100 rounded flex items-end overflow-hidden"><div class="w-full" :class="o === it.c ? 'bg-emerald-500' : 'bg-slate-400'" :style="'height:' + Math.round(it.cnt[o] / soal.an.N * 100) + '%'"></div></div><span class="text-[9px] font-bold" x-text="o + ' ' + Math.round(it.cnt[o] / soal.an.N * 100)"></span></div></template></div></td>
+                                    <td class="p-2 font-bold" :class="it.rec === 'Diterima' ? 'text-emerald-600' : it.rec === 'Buang' ? 'text-rose-600' : 'text-amber-600'" x-text="it.rec"></td></tr></template></tbody></table>
+                            </div>
+                            <p class="text-[10px] text-slate-400">p = tingkat kesukaran (sukar &lt;0,30; mudah &gt;0,70). DP = daya pembeda (kelompok atas/bawah 27%). r-pbis = validitas butir. Pengecoh dianggap lemah bila dipilih &lt;5% peserta.</p>
+                        </div>
+                    </template>
+                </div>
             </div>
 
             <div x-show="activeTab === 'jurnal'" class="space-y-4">
@@ -1521,6 +1632,10 @@
                 <i data-lucide="book-open-check" class="w-5 h-5"></i>
                 <span class="text-[10px] mt-0.5">Jurnal</span>
             </button>
+            <button @click="activeTab = 'analisis'" :class="activeTab === 'analisis' ? 'text-indigo-600 font-bold' : 'text-slate-400'" class="flex flex-col items-center py-1 transition">
+                <i data-lucide="scan-line" class="w-5 h-5"></i>
+                <span class="text-[10px] mt-0.5">Soal</span>
+            </button>
             <button @click="activeTab = 'berkas'" :class="activeTab === 'berkas' ? 'text-indigo-600 font-bold' : 'text-slate-400'" class="flex flex-col items-center py-1 transition">
                 <i data-lucide="folder-kanban" class="w-5 h-5"></i>
                 <span class="text-[10px] mt-0.5">Berkas</span>
@@ -1714,7 +1829,21 @@ Object.assign(FB, {
   saveNotulen: wrap(async p => { const m = me(), id = nid(); await setDoc(D('notulen', id), { username: m.username, ...NV(p) }); return ok({ id, message: 'Notulen berhasil disimpan!' }); }),
   updateNotulen: wrap(async p => { const m = me(), s = await getDoc(D('notulen', p.id)); need(s.exists(), 'Notulen tidak ditemukan.'); need(m.role === 'Admin' || s.data().username === m.username, 'Anda hanya dapat mengubah notulen milik sendiri.'); await setDoc(D('notulen', p.id), NV(p), { merge: true }); return ok({ message: 'Notulen berhasil diperbarui!' }); }),
   deleteNotulen: wrap(async id => { const m = me(), s = await getDoc(D('notulen', id)); need(s.exists(), 'Notulen tidak ditemukan.'); need(m.role === 'Admin' || s.data().username === m.username, 'Anda hanya dapat menghapus notulen milik sendiri.'); await deleteDoc(D('notulen', id)); return ok({ message: 'Notulen dihapus.' }); }),
-  saveKop: wrap(async (sekolah, kepsek) => { adm(); await setDoc(D('settings', 'app'), { namaSekolah: String(sekolah || '').slice(0, 120), kepsek: String(kepsek || '').slice(0, 80) }, { merge: true }); return ok(); })
+  saveKop: wrap(async (sekolah, kepsek) => { adm(); await setDoc(D('settings', 'app'), { namaSekolah: String(sekolah || '').slice(0, 120), kepsek: String(kepsek || '').slice(0, 80) }, { merge: true }); return ok(); }),
+  listKunci: wrap(async (tp, sem) => { const m = me(); return ok({ kunci: (await all('kunciSoal', where('tp', '==', tp), where('semester', '==', sem))).filter(k => m.role === 'Admin' || k.username === m.username) }); }),
+  saveKunci: wrap(async p => { const m = me(), n = parseInt(p.jumlahSoal, 10), o = parseInt(p.jumlahOpsi, 10), kunci = String(p.kunci || '').toUpperCase();
+    need(await canT(m, p.kelas, p.tp, p.semester, p.mapel), 'Anda tidak mengampu mata pelajaran/kelas ini.'); need(n >= 1 && n <= 50, 'Jumlah soal harus 1-50.'); need(o === 4 || o === 5, 'Jumlah opsi harus 4 atau 5.');
+    need(kunci.length === n && [...kunci].every(c => 'ABCDE'.slice(0, o).includes(c)), 'Kunci jawaban harus lengkap dan sesuai jumlah opsi.'); need(['Harian', 'PTS', 'ASAS', 'ASAT'].includes(p.jenis), 'Jenis penilaian tidak valid.');
+    const id = p.id || nid(); if (p.id) { const s0 = await getDoc(D('kunciSoal', id)); need(s0.exists() && (m.role === 'Admin' || s0.data().username === m.username), 'Kunci tidak ditemukan.'); }
+    await setDoc(D('kunciSoal', id), { ...(p.id ? {} : { username: m.username }), kelas: p.kelas, mapel: p.mapel, tp: p.tp, semester: p.semester, jenis: p.jenis, ke: parseInt(p.ke, 10) || 1, judul: String(p.judul || '').slice(0, 100), jumlahSoal: n, jumlahOpsi: o, kunci, updatedAt: Date.now() }, { merge: true });
+    return ok({ id, message: 'Kunci jawaban tersimpan.' }); }),
+  deleteKunci: wrap(async id => { const m = me(), s0 = await getDoc(D('kunciSoal', id)); need(s0.exists() && (m.role === 'Admin' || s0.data().username === m.username), 'Kunci tidak ditemukan.');
+    for (const h of await all('hasilLJK', where('kunciId', '==', id))) await deleteDoc(D('hasilLJK', h.id)); await deleteDoc(D('kunciSoal', id)); return ok({ message: 'Kunci dan hasilnya dihapus.' }); }),
+  loadHasil: wrap(async id => { const m = me(), s0 = await getDoc(D('kunciSoal', id)); need(s0.exists() && (m.role === 'Admin' || s0.data().username === m.username), 'Kunci tidak ditemukan.'); return ok({ hasil: await all('hasilLJK', where('kunciId', '==', id)) }); }),
+  saveHasil: wrap(async p => { const m = me(), s0 = await getDoc(D('kunciSoal', p.kunciId)); need(s0.exists() && (m.role === 'Admin' || s0.data().username === m.username), 'Kunci tidak ditemukan.'); const k = s0.data();
+    const valid = new Set((await all('siswa', where('kelas', '==', k.kelas))).map(x => x.id)), rows = [];
+    (p.rows || []).forEach(r => { if (valid.has(r.nisn) && /^[A-E*-]+$/.test(r.jawaban) && r.jawaban.length === k.jumlahSoal) rows.push({ id: p.kunciId + '_' + r.nisn, kunciId: p.kunciId, nisn: r.nisn, kelas: k.kelas, username: m.username, jawaban: r.jawaban, sumber: r.sumber === 'manual' ? 'manual' : 'scan', ...window.ljk(k.kunci, r.jawaban), updatedAt: Date.now() }); });
+    need(rows.length, 'Tidak ada hasil yang valid.'); await upsert('hasilLJK', rows); return ok({ message: rows.length + ' lembar jawaban berhasil disimpan.' }); }),
 });
 window.FB = FB;
 </script>
@@ -1780,6 +1909,7 @@ window.FB = FB;
                 monitor: { rows: [], guru: '', loading: false },
                 backupBusy: false, backupResult: { url: '', name: '' },
                 myJadwalForm: { hari: 'Senin', jamKe: '', kelas: '', mapel: '' },
+                soal: { sub: 'kunci', key: '', kunci: [], hasil: [], sel: '', scans: [], busy: false, an: null, form: { id: '', kelas: '', mapel: '', jenis: 'Harian', ke: 1, judul: '', jumlahSoal: 20, jumlahOpsi: 4, kunci: '' } },
                 attendanceForm: { selectedClass: 'X-1', mapel: '', tanggal: (() => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().split('T')[0]; })(), pertemuan: 1, records: {} },
                 journalForm: { id: '', mapel: '', 
                     tanggal: (() => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().split('T')[0]; })(), 
@@ -2852,6 +2982,110 @@ window.FB = FB;
 
 
 
+                soalKey() { return this.activeTP + '|' + this.activeSemester; },
+                sortedStudents(kelas) { return this.students.filter(s => s.kelas === kelas).sort((a, b) => String(a.nama).localeCompare(String(b.nama), 'id', { sensitivity: 'base' })); },
+                soalNama(n) { const s = this.students.find(x => x.nisn === n); return s ? s.nama : n; },
+                curKunci() { return this.soal.kunci.find(k => k.id === this.soal.sel) || null; },
+                resetKunciForm() { this.soal.form = { id: '', kelas: this.getAssignedClasses()[0] || '', mapel: '', jenis: 'Harian', ke: 1, judul: '', jumlahSoal: 20, jumlahOpsi: 4, kunci: '' }; },
+                async soalApi(fn, ...a) {
+                    if (!IS_PREVIEW) return this.api(fn, ...a);
+                    const S = this.soal;
+                    if (fn === 'saveKunci') { const q = a[0], id = q.id || String(Date.now()); S.kunci = S.kunci.filter(k => k.id !== id).concat([{ ...q, id, username: 'demo' }]); return { success: true, message: 'Kunci tersimpan (preview).' }; }
+                    if (fn === 'deleteKunci') { S.kunci = S.kunci.filter(k => k.id !== a[0]); return { success: true, message: 'Kunci dihapus (preview).' }; }
+                    if (fn === 'saveHasil') { const k = this.curKunci(); a[0].rows.forEach(r => { S.hasil = S.hasil.filter(h => h.nisn !== r.nisn).concat([{ nisn: r.nisn, kunciId: k.id, jawaban: r.jawaban, ...window.ljk(k.kunci, r.jawaban) }]); }); return { success: true, message: 'Hasil tersimpan (preview).' }; }
+                    return { success: true, message: 'Nilai dikirim (preview).' };
+                },
+                async loadSoal() {
+                    const S = this.soal; S.key = this.soalKey(); if (!S.form.kelas) this.resetKunciForm();
+                    if (IS_PREVIEW) {
+                        if (!S.kunci.length) { const c = this.getAssignedClasses()[0] || 'X-1', st = this.sortedStudents(c), m = (this.getAssignedMapel(c) || [])[0] || 'Mapel Demo';
+                            S.kunci = [{ id: 'demo1', kelas: c, mapel: m, jenis: 'Harian', ke: 1, judul: 'Latihan Demo', jumlahSoal: 5, jumlahOpsi: 4, kunci: 'ABCDA' }];
+                            S.hasil = st.slice(0, 2).map((s, i) => ({ nisn: s.nisn, kunciId: 'demo1', jawaban: i ? 'ABCDB' : 'ABCDA', ...window.ljk('ABCDA', i ? 'ABCDB' : 'ABCDA') })); S.sel = 'demo1'; }
+                        S.an = this.analisis(); return;
+                    }
+                    const r = await this.api('listKunci', this.activeTP, this.activeSemester);
+                    if (r.success) S.kunci = r.kunci; if (S.sel && !this.curKunci()) S.sel = '';
+                    await this.loadHasilSoal();
+                },
+                async loadHasilSoal() { const S = this.soal; if (!IS_PREVIEW) { S.hasil = []; if (S.sel) { const r = await this.api('loadHasil', S.sel); if (r.success) S.hasil = r.hasil; } } S.an = this.analisis(); },
+                pickKunci(id) { this.soal.sel = id; this.soal.scans = []; this.loadHasilSoal(); },
+                editKunci(k) { this.soal.form = { ...k }; },
+                async saveKunciSoal() {
+                    const f = this.soal.form; f.kunci = String(f.kunci || '').toUpperCase().replace(/[^A-E]/g, '');
+                    if (!f.kelas || !f.mapel || !f.judul) return this.notify('Kelas, mata pelajaran, dan judul wajib diisi.', 'err');
+                    if (f.kunci.length !== Number(f.jumlahSoal)) return this.notify('Panjang kunci (' + f.kunci.length + ') harus sama dengan jumlah soal.', 'err');
+                    this.saving = true; const r = await this.soalApi('saveKunci', { ...f, tp: this.activeTP, semester: this.activeSemester }); this.saving = false;
+                    if (this.done(r, 'Kunci tersimpan.')) { this.resetKunciForm(); await this.loadSoal(); }
+                },
+                async delKunci(k) { if (!confirm('Hapus kunci beserta seluruh hasilnya?')) return; const r = await this.soalApi('deleteKunci', k.id); if (this.done(r, 'Dihapus.')) { if (this.soal.sel === k.id) this.soal.sel = ''; await this.loadSoal(); } },
+                ljkPos(i, j) { const c = Math.floor(i / 25); return { x: 0.14 + c * 0.5 + j * 0.075, y: 0.22 + (i % 25) * 0.03, nx: 0.06 + c * 0.5 }; },
+                printLJK() {
+                    const k = this.curKunci(); if (!k) return this.notify('Pilih kunci jawaban terlebih dahulu.', 'err');
+                    const st = this.sortedStudents(k.kelas); if (!st.length) return this.notify('Tidak ada siswa pada kelas ini.', 'err');
+                    const pc = v => (v * 100).toFixed(3) + '%', el = (x, y, c, t = '') => `<b class="${c}" style="left:${pc(x)};top:${pc(y)}">${t}</b>`, esc = t => String(t).replace(/[<>&]/g, '');
+                    const pages = st.map((s, si) => {
+                        let h = [[0, 0], [1, 0], [1, 1], [0, 1]].map(([x, y]) => el(x, y, 'm')).join('');
+                        h += `<div class="hd"><b style="position:static;transform:none;font-size:13px">LEMBAR JAWABAN - ${esc(k.judul)}</b><br>${esc(k.mapel)} &bull; Kelas ${esc(k.kelas)} &bull; ${esc(this.activeTP)} ${esc(this.activeSemester)}<br>Nama: <u>${esc(s.nama)}</u> &nbsp; NISN: <u>${esc(s.nisn)}</u><br><small>Hitamkan satu bulatan dengan pensil 2B. Jangan melipat atau mencoret penanda hitam.</small></div>` + el(0.4, 0.11, 'n', 'KODE:');
+                        for (let b = 0; b < 7; b++) h += el(0.55 + b * 0.06, 0.11, 'bit' + (((si + 1) >> b) & 1 ? ' f' : ''));
+                        for (let i = 0; i < k.jumlahSoal; i++) { const q = this.ljkPos(i, 0); h += el(q.nx, q.y, 'n', i + 1); for (let j = 0; j < k.jumlahOpsi; j++) { const o = this.ljkPos(i, j); h += el(o.x, o.y, 'o', 'ABCDE'[j]); } }
+                        return `<div class="pg"><div class="bx">${h}</div></div>`;
+                    }).join('');
+                    const w = window.open('', '_blank'); if (!w) return this.notify('Izinkan pop-up browser untuk mencetak LJK.', 'err');
+                    w.document.write(`<html><head><title>LJK ${esc(k.kelas)}</title><style>@page{size:A4;margin:0}body{margin:0;font-family:Arial}.pg{position:relative;width:210mm;height:297mm;page-break-after:always;overflow:hidden}.bx{position:absolute;left:20mm;top:20mm;width:170mm;height:257mm}b{position:absolute;transform:translate(-50%,-50%);font-weight:normal;font-size:8px;text-align:center}.m{width:8mm;height:8mm;background:#000}.o{width:4.5mm;height:4.5mm;border:.3mm solid #000;border-radius:50%;color:#999;line-height:4.5mm;font-size:7px}.bit{width:4mm;height:4mm;border:.3mm solid #000}.f{background:#000}.n{font-size:9px;font-weight:bold}.hd{position:absolute;left:6mm;top:5mm;width:150mm;font-size:11px;line-height:1.6}</style></head><body>${pages}</body></html>`);
+                    w.document.close(); setTimeout(() => w.print(), 400);
+                },
+                async scanFiles(ev) {
+                    const k = this.curKunci(); if (!k) return this.notify('Pilih kunci jawaban terlebih dahulu.', 'err');
+                    const S = this.soal, st = this.sortedStudents(k.kelas); S.busy = true;
+                    for (const f of ev.target.files) { try { S.scans.push({ name: f.name, ...(await this.readSheet(f, k, st)) }); } catch (e) { S.scans.push({ name: f.name, nisn: '', jawaban: '-'.repeat(k.jumlahSoal), err: e.message }); } }
+                    S.busy = false; ev.target.value = '';
+                },
+                addManual() { const k = this.curKunci(); if (k) this.soal.scans.push({ name: 'Manual', nisn: '', jawaban: '-'.repeat(k.jumlahSoal), manual: true }); },
+                async readSheet(file, k, st) {
+                    const img = await createImageBitmap(file), W = 1100, H = Math.round(img.height * W / img.width), cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+                    const cx = cv.getContext('2d', { willReadFrequently: true }); cx.drawImage(img, 0, 0, W, H); const d = cx.getImageData(0, 0, W, H).data;
+                    const lum = (x, y) => { x = Math.round(x); y = Math.round(y); if (x < 0 || y < 0 || x >= W || y >= H) return 255; const i = (y * W + x) * 4; return .299 * d[i] + .587 * d[i + 1] + .114 * d[i + 2]; };
+                    const B = 34, win = .32, cor = [[0, 0], [1, 0], [1, 1], [0, 1]].map(([a, b]) => {
+                        const x0 = a ? W * (1 - win) : 0, y0 = b ? H * (1 - win) : 0; let best = 0, bx = 0, by = 0;
+                        for (let y = y0; y < y0 + H * win - B; y += 4) for (let x = x0; x < x0 + W * win - B; x += 4) { let n = 0, t = 0; for (let j = 0; j < B; j += 4) for (let i = 0; i < B; i += 4) { t++; if (lum(x + i, y + j) < 90) n++; } if (n / t > best) { best = n / t; bx = x + B / 2; by = y + B / 2; } }
+                        if (best < .9) throw new Error('Penanda sudut tidak terbaca. Pastikan keempat sudut LJK terlihat jelas dan cahaya merata.');
+                        let sx = 0, sy = 0, c = 0; for (let y = by - B; y <= by + B; y += 2) for (let x = bx - B; x <= bx + B; x += 2) if (lum(x, y) < 90) { sx += x; sy += y; c++; }
+                        return [sx / c, sy / c];
+                    });
+                    const [TL, TR, BR, BL] = cor, P = (u, v) => [0, 1].map(q => (1 - u) * (1 - v) * TL[q] + u * (1 - v) * TR[q] + u * v * BR[q] + (1 - u) * v * BL[q]);
+                    const rr = 1.3 * Math.hypot(TR[0] - TL[0], TR[1] - TL[1]) / 170;
+                    const mean = (u, v) => { const [px, py] = P(u, v); let s = 0, n = 0; for (let y = -rr; y <= rr; y++) for (let x = -rr; x <= rr; x++) if (x * x + y * y <= rr * rr) { s += lum(px + x, py + y); n++; } return s / n; };
+                    const M = []; for (let i = 0; i < k.jumlahSoal; i++) { const row = []; for (let j = 0; j < k.jumlahOpsi; j++) { const q = this.ljkPos(i, j); row.push(mean(q.x, q.y)); } M.push(row); }
+                    const so = M.flat().sort((a, b) => a - b), base = so[Math.floor(so.length * .9)] || 255; let jawaban = '';
+                    M.forEach(row => { const ix = row.map((m, j) => 1 - m / base > .3 ? j : -1).filter(j => j >= 0); jawaban += ix.length === 0 ? '-' : ix.length === 1 ? 'ABCDE'[ix[0]] : '*'; });
+                    let id = 0; for (let b = 0; b < 7; b++) if (mean(.55 + b * .06, .11) < base * .5) id |= 1 << b;
+                    return { nisn: st[id - 1] ? st[id - 1].nisn : '', jawaban };
+                },
+                async saveScans() {
+                    const k = this.curKunci(), S = this.soal, n = Number(k.jumlahSoal);
+                    const rows = S.scans.filter(s => s.nisn).map(s => ({ nisn: s.nisn, sumber: s.manual ? 'manual' : 'scan', jawaban: String(s.jawaban).toUpperCase().replace(/[^A-E*-]/g, '-').padEnd(n, '-').slice(0, n) }));
+                    if (!rows.length) return this.notify('Pilih siswa pada minimal satu lembar.', 'err');
+                    this.saving = true; const r = await this.soalApi('saveHasil', { kunciId: k.id, rows }); this.saving = false;
+                    if (this.done(r, 'Hasil tersimpan.')) { S.scans = []; await this.loadHasilSoal(); }
+                },
+                async kirimNilai() {
+                    const k = this.curKunci(), gm = {}; this.soal.hasil.forEach(h => { gm[h.nisn] = h.skor; }); if (!Object.keys(gm).length) return this.notify('Belum ada hasil koreksi.', 'err');
+                    const r = await this.soalApi('saveGradeData', { type: k.jenis, ke: k.ke || 1, kelas: k.kelas, mapel: k.mapel, gradesMap: gm, tp: this.activeTP, semester: this.activeSemester }); this.done(r, 'Nilai terkirim.');
+                },
+                analisis() {
+                    const k = this.curKunci(), Hs = this.soal.hasil; if (!k || Hs.length < 2) return null;
+                    const N = Hs.length, n = Number(k.jumlahSoal), o = Number(k.jumlahOpsi), g = Math.max(1, Math.round(N * .27)), X = Hs.map(h => h.benar), mu = X.reduce((a, b) => a + b, 0) / N, sd = Math.sqrt(X.reduce((a, b) => a + (b - mu) ** 2, 0) / N);
+                    const rk = [...Hs].sort((a, b) => b.benar - a.benar), up = rk.slice(0, g), lo = rk.slice(-g), opts = 'ABCDE'.slice(0, o).split(''); let spq = 0;
+                    const items = Array.from({ length: n }, (_, i) => {
+                        const c = k.kunci[i], cnt = { '-': 0 }; opts.forEach(l => { cnt[l] = 0; }); Hs.forEach(h => { const a = h.jawaban[i] || '-'; cnt[a] = (cnt[a] || 0) + 1; });
+                        const ok = h => h.jawaban[i] === c, cr = Hs.filter(ok), w = Hs.filter(h => !ok(h)), p = cr.length / N, dp = (up.filter(ok).length - lo.filter(ok).length) / g;
+                        const m1 = cr.length ? cr.reduce((a, h) => a + h.benar, 0) / cr.length : 0, m0 = w.length ? w.reduce((a, h) => a + h.benar, 0) / w.length : 0, rpb = sd && cr.length && w.length ? (m1 - m0) / sd * Math.sqrt(p * (1 - p)) : 0; spq += p * (1 - p);
+                        const lemah = opts.filter(l => l !== c && cnt[l] / N < .05), rec = dp < 0 ? 'Buang' : (dp < .2 || p === 0 || p === 1) ? 'Revisi' : lemah.length ? 'Perbaiki pengecoh' : 'Diterima';
+                        return { no: i + 1, c, cnt, p, dp, rpb, rec, lvl: p < .3 ? 'Sukar' : p > .7 ? 'Mudah' : 'Sedang' };
+                    });
+                    return { N, n, opts, items, mu, max: Math.max(...X), min: Math.min(...X), tuntas: Math.round(Hs.filter(h => h.skor >= 75).length / N * 100), kr20: n > 1 && sd ? n / (n - 1) * (1 - spq / (sd * sd)) : 0 };
+                },
+
                 getFilteredStudents() {
                     const targetClass = this.activeTab === 'absensi' ? this.attendanceForm.selectedClass : this.gradeForm.selectedClass;
                     const list = this.students.filter(s => s.kelas === targetClass);
@@ -2883,5 +3117,6 @@ window.FB = FB;
             };
         }
     </script>
+<script>window.ljk=(key,a)=>{let b=0,z=0,k=0;[...key].forEach((c,i)=>{const x=a[i]||'-';if(x==='-')k++;else if(x===c)b++;else z++;});return{benar:b,salah:z,kosong:k,skor:Math.round(b/key.length*1000)/10};};</script>
 </body>
 </html>
